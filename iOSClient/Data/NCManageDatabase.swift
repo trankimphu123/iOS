@@ -2044,7 +2044,7 @@ class NCManageDatabase: NSObject {
         return metadata
     }
     
-    @objc func convertNCCommunicationFilesToMetadatas(_ files: [NCCommunicationFile], useMetadataFolder: Bool, account: String, completion: @escaping (_ metadataFolder: tableMetadata,_ metadatasFolder: [tableMetadata], _ metadatas: [tableMetadata])->())  {
+    @objc func convertNCCommunicationFilesToMetadatas(_ files: [NCCommunicationFile], useMetadataFolder: Bool, account: String, completion: @escaping (_ metadataFolder: tableMetadata,_ metadatasFolder: [tableMetadata], _ metadatas: [tableMetadata]) -> ())  {
     
         var counter: Int = 0
         var isEncrypted: Bool = false
@@ -2055,7 +2055,7 @@ class NCManageDatabase: NSObject {
         var metadatas: [tableMetadata] = []
 
         for file in files {
-                        
+
             if let key = listServerUrl[file.serverUrl] {
                 isEncrypted = key
             } else {
