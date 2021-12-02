@@ -38,14 +38,6 @@ class NCShare: UIViewController, UIGestureRecognizerDelegate, NCShareNetworkingD
     @IBOutlet weak var sharedWithYouByNote: MarqueeLabel!
     @IBOutlet weak var searchFieldTopConstraint: NSLayoutConstraint!
     @IBOutlet weak var searchField: UITextField!
-    @IBOutlet weak var shareLinkImage: UIImageView!
-    @IBOutlet weak var shareLinkLabel: UILabel!
-    @IBOutlet weak var shareInternalLinkImage: UIImageView!
-    @IBOutlet weak var shareInternalLinkLabel: UILabel!
-    @IBOutlet weak var shareInternalLinkDescription: UILabel!
-    @IBOutlet weak var buttonInternalCopy: UIButton!
-    @IBOutlet weak var buttonCopy: UIButton!
-    @IBOutlet weak var buttonMenu: UIButton!
     @IBOutlet weak var tableView: UITableView!
     
     private let appDelegate = UIApplication.shared.delegate as! AppDelegate
@@ -53,6 +45,9 @@ class NCShare: UIViewController, UIGestureRecognizerDelegate, NCShareNetworkingD
     public var metadata: tableMetadata?
     public var sharingEnabled = true
     public var height: CGFloat = 0
+    
+    var shares: (firstShareLink: tableShare?,  share: [tableShare]?) = (nil, nil)
+
     
     private var shareLinkMenuView: NCShareLinkMenuView?
     private var shareUserMenuView: NCShareUserMenuView?
@@ -72,16 +67,6 @@ class NCShare: UIViewController, UIGestureRecognizerDelegate, NCShareNetworkingD
                 
         searchField.placeholder = NSLocalizedString("_shareLinksearch_placeholder_", comment: "")
         
-        shareLinkImage.image = NCShareCommon.shared.createLinkAvatar(imageName: "sharebylink", colorCircle: NCBrandColor.shared.brandElement)
-        shareLinkLabel.text = NSLocalizedString("_share_link_", comment: "")
-        shareLinkLabel.textColor = NCBrandColor.shared.label
-        buttonCopy.setImage(UIImage.init(named: "shareCopy")?.image(color: .gray, size: 50), for: .normal)
-
-        shareInternalLinkImage.image = NCShareCommon.shared.createLinkAvatar(imageName: "shareInternalLink", colorCircle: .gray)
-        shareInternalLinkLabel.text = NSLocalizedString("_share_internal_link_", comment: "")
-        shareInternalLinkDescription.text = NSLocalizedString("_share_internal_link_des_", comment: "")
-        buttonInternalCopy.setImage(UIImage.init(named: "shareCopy")?.image(color: .gray, size: 50), for: .normal)
-
         tableView.dataSource = self
         tableView.delegate = self
         tableView.allowsSelection = false
@@ -180,23 +165,7 @@ class NCShare: UIViewController, UIGestureRecognizerDelegate, NCShareNetworkingD
     // MARK: -
     
     @objc func reloadData() {
-        let shares = NCManageDatabase.shared.getTableShares(metadata: metadata!)
-        if shares.firstShareLink == nil {
-            buttonMenu.setImage(UIImage.init(named: "shareAdd")?.image(color: .gray, size: 50), for: .normal)
-            buttonCopy.isHidden = true
-        } else {
-            buttonMenu.setImage(UIImage.init(named: "shareMenu")?.image(color: .gray, size: 50), for: .normal)
-            buttonCopy.isHidden = false
-            
-            shareLinkLabel.text = NSLocalizedString("_share_link_", comment: "")
-            if shares.firstShareLink?.label.count ?? 0 > 0 {
-                if let shareLinkLabel = shareLinkLabel {
-                    if let label = shares.firstShareLink?.label {
-                        shareLinkLabel.text = NSLocalizedString("_share_link_", comment: "") + " (" + label + ")"
-                    }
-                }
-            }
-        }
+        shares = NCManageDatabase.shared.getTableShares(metadata: metadata!)
         tableView.reloadData()
     }
     
@@ -207,56 +176,6 @@ class NCShare: UIViewController, UIGestureRecognizerDelegate, NCShareNetworkingD
         guard let searchString = textField.text else { return }
 
         networking?.getSharees(searchString: searchString)
-    }
-    
-    @IBAction func touchUpInsideButtonCopy(_ sender: Any) {
-        
-        guard let metadata = self.metadata else { return }
-
-        let shares = NCManageDatabase.shared.getTableShares(metadata: metadata)
-        tapCopy(with: shares.firstShareLink, sender: sender)
-    }
-    
-    @IBAction func touchUpInsideButtonCopyInernalLink(_ sender: Any) {
-        
-        guard let metadata = self.metadata else { return }
-        
-        let serverUrlFileName = metadata.serverUrl + "/" + metadata.fileName
-        NCNetworking.shared.readFile(serverUrlFileName: serverUrlFileName, account: metadata.account) { (account, metadata, errorCode, errorDescription) in
-            if errorCode == 0 && metadata != nil {
-                let internalLink = self.appDelegate.urlBase + "/index.php/f/" + metadata!.fileId
-                NCShareCommon.shared.copyLink(link: internalLink, viewController: self, sender: sender)
-            } else {
-                NCContentPresenter.shared.messageNotification("_share_", description: errorDescription, delay: NCGlobal.shared.dismissAfterSecond, type: NCContentPresenter.messageType.error, errorCode: errorCode)
-            }
-        }
-    }
-    
-    @IBAction func touchUpInsideButtonMenu(_ sender: Any) {
-
-        guard let metadata = self.metadata else { return }
-        let isFilesSharingPublicPasswordEnforced = NCManageDatabase.shared.getCapabilitiesServerBool(account: metadata.account, elements: NCElementsJSON.shared.capabilitiesFileSharingPubPasswdEnforced, exists: false)
-        let shares = NCManageDatabase.shared.getTableShares(metadata: metadata)
-
-        if isFilesSharingPublicPasswordEnforced && shares.firstShareLink == nil {
-            let alertController = UIAlertController(title: NSLocalizedString("_enforce_password_protection_", comment: ""), message: "", preferredStyle: .alert)
-            alertController.addTextField { (textField) in
-                textField.isSecureTextEntry = true
-            }
-            alertController.addAction(UIAlertAction(title: NSLocalizedString("_cancel_", comment: ""), style: .default) { (action:UIAlertAction) in })
-            let okAction = UIAlertAction(title: NSLocalizedString("_ok_", comment: ""), style: .default) { (action:UIAlertAction) in
-                let password = alertController.textFields?.first?.text
-                self.networking?.createShareLink(password: password ?? "")
-            }
-            
-            alertController.addAction(okAction)
-            
-            self.present(alertController, animated: true, completion:nil)
-        } else if shares.firstShareLink == nil {
-            networking?.createShareLink(password: "")
-        } else {
-            tapMenu(with: shares.firstShareLink!, sender: sender)
-        }
     }
     
     @objc func tapLinkMenuViewWindow(gesture: UITapGestureRecognizer) {
@@ -378,24 +297,30 @@ extension NCShare: UITableViewDelegate {
 extension NCShare: UITableViewDataSource {
     
     func numberOfSections(in tableView: UITableView) -> Int {
-        return 1
+        return 2
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        
-        var numOfRows = 0
-        let shares = NCManageDatabase.shared.getTableShares(metadata: metadata!)
-        
-        if shares.share != nil {
-            numOfRows = shares.share!.count
-        }
-        
-        return numOfRows
+        guard section != 0 else { return 2 }
+        return shares.share?.count ?? 0
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let shares = NCManageDatabase.shared.getTableShares(metadata: metadata!)
+        // Setup default share cells
+        guard indexPath.section != 0 else {
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "cellLink", for: indexPath) as? NCShareLinkCell
+            else { return UITableViewCell() }
+            cell.delegate = self
+            if indexPath.row == 0 {
+                cell.isInternalLink = true
+            } else {
+                cell.tableShare = shares.firstShareLink
+            }
+            cell.setupCellUI()
+            return cell
+        }
+        
         let tableShare = shares.share![indexPath.row]
         
         // LINK
@@ -403,11 +328,7 @@ extension NCShare: UITableViewDataSource {
             if let cell = tableView.dequeueReusableCell(withIdentifier: "cellLink", for: indexPath) as? NCShareLinkCell {
                 cell.tableShare = tableShare
                 cell.delegate = self
-                cell.labelTitle.text = NSLocalizedString("_share_link_", comment: "")
-                if tableShare.label.count > 0 {
-                    cell.labelTitle.text = NSLocalizedString("_share_link_", comment: "") + " (" + tableShare.label + ")"
-                }
-                cell.labelTitle.textColor = NCBrandColor.shared.label
+                cell.setupCellUI()
                 return cell
             }
         } else {
@@ -465,33 +386,68 @@ extension NCShare: UITableViewDataSource {
 // MARK: - NCCell Delegates
 extension NCShare: NCShareLinkCellDelegate, NCShareUserCellDelegate {
 
-    func tapCopy(with tableShare: tableShare?, sender: Any) {
+    func copyInternalLink(sender: Any) {
         
-        if let link = tableShare?.url {
-            NCShareCommon.shared.copyLink(link: link, viewController: self, sender: sender)
+        guard let metadata = self.metadata else { return }
+        
+        let serverUrlFileName = metadata.serverUrl + "/" + metadata.fileName
+        NCNetworking.shared.readFile(serverUrlFileName: serverUrlFileName, account: metadata.account) { (account, metadata, errorCode, errorDescription) in
+            if errorCode == 0 && metadata != nil {
+                let internalLink = self.appDelegate.urlBase + "/index.php/f/" + metadata!.fileId
+                NCShareCommon.shared.copyLink(link: internalLink, viewController: self, sender: sender)
+            } else {
+                NCContentPresenter.shared.messageNotification("_share_", description: errorDescription, delay: NCGlobal.shared.dismissAfterSecond, type: NCContentPresenter.messageType.error, errorCode: errorCode)
+            }
         }
     }
 
-    func tapMenu(with tableShare: tableShare?, sender: Any) {
-        
-        guard let tableShare = tableShare else { return }
+    func tapCopy(with tableShare: tableShare?, sender: Any) {
+        guard let tableShare = tableShare else {
+            return copyInternalLink(sender: sender)
+        }
+        NCShareCommon.shared.copyLink(link: tableShare.url, viewController: self, sender: sender)
+    }
 
-        if tableShare.shareType == 3 {
-            let views = NCShareCommon.shared.openViewMenuShareLink(shareViewController: self, tableShare: tableShare, metadata: metadata!)
-            shareLinkMenuView = views.shareLinkMenuView
-            shareMenuViewWindow = views.viewWindow
+    func tapMenu(with tableShare: tableShare?, sender: Any) {
+        guard let metadata = self.metadata else { return }
+        let isFilesSharingPublicPasswordEnforced = NCManageDatabase.shared.getCapabilitiesServerBool(account: metadata.account, elements: NCElementsJSON.shared.capabilitiesFileSharingPubPasswdEnforced, exists: false)
+
+        if let tableShare = tableShare {
+            // open share menu
+            if tableShare.shareType == 3 {
+                let views = NCShareCommon.shared.openViewMenuShareLink(shareViewController: self, tableShare: tableShare, metadata: metadata)
+                shareLinkMenuView = views.shareLinkMenuView
+                shareMenuViewWindow = views.viewWindow
+                
+                let tap = UITapGestureRecognizer(target: self, action: #selector(tapLinkMenuViewWindow))
+                tap.delegate = self
+                shareMenuViewWindow?.addGestureRecognizer(tap)
+            } else {
+                let views = NCShareCommon.shared.openViewMenuUser(shareViewController: self, tableShare: tableShare, metadata: metadata)
+                shareUserMenuView = views.shareUserMenuView
+                shareMenuViewWindow = views.viewWindow
+                
+                let tap = UITapGestureRecognizer(target: self, action: #selector(tapLinkMenuViewWindow))
+                tap.delegate = self
+                shareMenuViewWindow?.addGestureRecognizer(tap)
+            }
+        } else if isFilesSharingPublicPasswordEnforced {
+            // create share with pw
+            let alertController = UIAlertController(title: NSLocalizedString("_enforce_password_protection_", comment: ""), message: "", preferredStyle: .alert)
+            alertController.addTextField { (textField) in
+                textField.isSecureTextEntry = true
+            }
+            alertController.addAction(UIAlertAction(title: NSLocalizedString("_cancel_", comment: ""), style: .default) { (action:UIAlertAction) in })
+            let okAction = UIAlertAction(title: NSLocalizedString("_ok_", comment: ""), style: .default) { (action:UIAlertAction) in
+                let password = alertController.textFields?.first?.text
+                self.networking?.createShareLink(password: password ?? "")
+            }
             
-            let tap = UITapGestureRecognizer(target: self, action: #selector(tapLinkMenuViewWindow))
-            tap.delegate = self
-            shareMenuViewWindow?.addGestureRecognizer(tap)
+            alertController.addAction(okAction)
+            self.present(alertController, animated: true, completion: nil)
         } else {
-            let views = NCShareCommon.shared.openViewMenuUser(shareViewController: self, tableShare: tableShare, metadata: metadata!)
-            shareUserMenuView = views.shareUserMenuView
-            shareMenuViewWindow = views.viewWindow
-            
-            let tap = UITapGestureRecognizer(target: self, action: #selector(tapLinkMenuViewWindow))
-            tap.delegate = self
-            shareMenuViewWindow?.addGestureRecognizer(tap)
+            // create sahre without pw
+            networking?.createShareLink(password: "")
         }
     }
 
