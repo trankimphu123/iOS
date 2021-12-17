@@ -222,7 +222,7 @@ class NCShare: UIViewController, UIGestureRecognizerDelegate, NCShareNetworkingD
         guard let metadata = self.metadata else { return }
         
         let serverUrlFileName = metadata.serverUrl + "/" + metadata.fileName
-        NCNetworking.shared.readFile(serverUrlFileName: serverUrlFileName, account: metadata.account) { (account, metadata, errorCode, errorDescription) in
+        NCNetworking.shared.readFile(serverUrlFileName: serverUrlFileName) { (account, metadata, errorCode, errorDescription) in
             if errorCode == 0 && metadata != nil {
                 let internalLink = self.appDelegate.urlBase + "/index.php/f/" + metadata!.fileId
                 NCShareCommon.shared.copyLink(link: internalLink, viewController: self, sender: sender)
